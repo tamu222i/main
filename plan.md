@@ -59,6 +59,7 @@
   - `vite.config.ts` で `base: './'` を設定し、`username.github.io/repo-name/` のようなサブディレクトリ配下でもアセット（JS/CSS/アイコン）が404にならず正常読み込み可能に設定。
 - **GitHub Actions 自動デプロイ ワークフロー (`.github/workflows/deploy.yml`)**:
   - `main`/`master` ブランチへの push または手動トリガー時に、自動で依存関係インストール、テスト実行（Vitest）、ビルド（Vite）、GitHub Pagesへの発行を完全自動化。
+  - `package-lock.json` 生成・コミットおよび `deploy.yml` 内の `package-lock.json` 有無に応じたフォールバック（`npm ci || npm install`）により、ロックファイル未検出エラーを防止。
 - **インタラクティブ・操作説明 & ヒント表示機能**:
   - `TutorialHintManager` (`src/domain/tutorialHints.ts`): BDD/TDDでテストされたチュートリアルヒント管理サービス。
   - `HintBanner.tsx`: 画面上部に視点移動、掘る、置く、飛行、セーブなどの重要ヒントをカルーセル表示（自動巡回、前/次切り替え、非表示可能）。

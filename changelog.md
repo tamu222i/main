@@ -55,3 +55,13 @@
 - **Refactor (Clean Polish)**:
   - TypeScript型チェック（`tsc --noEmit`）合格
   - プロダクションビルド（`vite build`）合格
+
+### [Cycle 4: Fix GitHub Actions Deploy Lockfile Error] - Red -> Green -> Refactor
+- **Red (Issue Identification)**:
+  - GitHub Actionsの `actions/setup-node@v4` で `cache: 'npm'` 指定時に、リポジトリに `package-lock.json` が存在しないため `Dependencies lock file is not found` エラーでビルドジョブが停止する問題を特定
+- **Green (Implementation)**:
+  - `package-lock.json` を生成しリポジトリにコミット
+  - `.github/workflows/deploy.yml` の `setup-node` で必須キャッシュ指定を解除し、依存関係インストール部を `package-lock.json` の有無に応じて `npm ci` / `npm install` へフォールバックする耐障害性の高い処理に改善
+- **Refactor (Verification)**:
+  - 全25件のユニットテスト合格確認（`npm test`）
+  - 本番ビルド検証完了（`vite build`）
