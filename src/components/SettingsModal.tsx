@@ -10,6 +10,9 @@ interface SettingsModalProps {
   hasSavedWorld: boolean;
   touchSensitivity: number;
   onChangeTouchSensitivity: (val: number) => void;
+  islandName: string;
+  onOpenRenameIsland: () => void;
+  onOpenAvatarModal: () => void;
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({
@@ -22,6 +25,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   hasSavedWorld,
   touchSensitivity,
   onChangeTouchSensitivity,
+  islandName,
+  onOpenRenameIsland,
+  onOpenAvatarModal,
 }) => {
   const [seedInput, setSeedInput] = useState<string>(currentSeed.toString());
 
@@ -59,6 +65,39 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         <div className="space-y-5 my-4">
+          {/* Island Profile & Avatar Customization Section */}
+          <div className="bg-gradient-to-r from-emerald-950/60 to-purple-950/60 p-4 rounded-2xl border border-emerald-700/40 space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-emerald-400 font-semibold tracking-wider block">現在の島</span>
+                <h3 className="text-base font-extrabold text-white flex items-center gap-1.5">
+                  <span>🏝️</span>
+                  <span>{islandName}</span>
+                </h3>
+              </div>
+              <button
+                onClick={onOpenRenameIsland}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-xs font-bold rounded-xl text-white shadow transition"
+              >
+                名前を変更
+              </button>
+            </div>
+
+            <div className="pt-2 border-t border-white/10 flex items-center justify-between">
+              <div>
+                <span className="text-[11px] text-purple-300 font-semibold tracking-wider block">プレイヤー外見</span>
+                <span className="text-xs text-stone-300">髪型・服・アクセサリを着せ替え</span>
+              </div>
+              <button
+                onClick={onOpenAvatarModal}
+                className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-xs font-bold rounded-xl text-white shadow transition flex items-center gap-1"
+              >
+                <span>👤</span>
+                <span>アバター編集</span>
+              </button>
+            </div>
+          </div>
+
           {/* World Persistence Section */}
           <div className="bg-neutral-850 p-4 rounded-2xl border border-neutral-800">
             <h3 className="text-sm font-bold text-neutral-200 mb-2 flex items-center gap-1.5">

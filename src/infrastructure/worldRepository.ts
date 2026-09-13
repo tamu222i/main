@@ -1,8 +1,18 @@
 import { VoxelWorld } from '../domain/voxelWorld';
+import {
+  IslandProfile,
+  IslandProfileSchema,
+  DEFAULT_ISLAND_PROFILE,
+  AvatarProfile,
+  AvatarProfileSchema,
+  DEFAULT_AVATAR_PROFILE,
+} from '../domain/islandAvatarSchemas';
 
 export class WorldRepository {
   private storage: Storage;
   private readonly STORAGE_PREFIX = 'minecraft_web_world_';
+  private readonly ISLAND_PROFILE_KEY = 'minecraft_island_profile';
+  private readonly AVATAR_PROFILE_KEY = 'minecraft_avatar_profile';
 
   constructor(storage?: Storage) {
     if (storage) {
@@ -58,6 +68,44 @@ export class WorldRepository {
 
   deleteWorld(slotId: string): void {
     this.storage.removeItem(`${this.STORAGE_PREFIX}${slotId}`);
+  }
+
+  saveIslandProfile(profile: IslandProfile): boolean {
+    try {
+      this.storage.setItem(this.ISLAND_PROFILE_KEY, JSON.stringify(profile));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  loadIslandProfile(): IslandProfile {
+    try {
+      const raw = this.storage.getItem(this.ISLAND_PROFILE_KEY);
+      if (!raw) return DEFAULT_ISLAND_PROFILE;
+      return IslandProfileSchema.parse(JSON.parse(raw));
+    } catch {
+      return DEFAULT_ISLAND_PROFILE;
+    }
+  }
+
+  saveAvatarProfile(profile: AvatarProfile): boolean {
+    try {
+      this.storage.setItem(this.AVATAR_PROFILE_KEY, JSON.stringify(profile));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  loadAvatarProfile(): AvatarProfile {
+    try {
+      const raw = this.storage.getItem(this.AVATAR_PROFILE_KEY);
+      if (!raw) return DEFAULT_AVATAR_PROFILE;
+      return AvatarProfileSchema.parse(JSON.parse(raw));
+    } catch {
+      return DEFAULT_AVATAR_PROFILE;
+    }
   }
 }
 

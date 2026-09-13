@@ -38,14 +38,26 @@ export class Player {
   readonly runSpeed: number;
   readonly jumpVelocity: number;
   readonly gravity: number;
+  safeSpawn: Vector3D;
 
   constructor(options: PlayerOptions = {}) {
     this.position = options.initialPosition ?? new Vector3D(0, 10, 0);
+    this.safeSpawn = this.position.clone();
     this.velocity = new Vector3D(0, 0, 0);
     this.walkSpeed = options.walkSpeed ?? 4.3;
     this.runSpeed = options.runSpeed ?? 6.5;
     this.jumpVelocity = options.jumpVelocity ?? 8.5;
     this.gravity = options.gravity ?? 26.0;
+  }
+
+  setSafeSpawn(pos: Vector3D): void {
+    this.safeSpawn = pos.clone();
+  }
+
+  respawn(pos: Vector3D = this.safeSpawn): void {
+    this.position = pos.clone();
+    this.velocity = new Vector3D(0, 0, 0);
+    this.onGround = true;
   }
 
   getEyePosition(): Vector3D {
@@ -115,11 +127,14 @@ export class Player {
       if (input.jump) moveY += this.walkSpeed * 1.5;
       if (input.sneak) moveY -= this.walkSpeed * 1.5;
 
-      this.position = new Vector3D(
-        this.position.x + moveX * fixedDt,
-        this.position.y + moveY * fixedDt,
-        this.position.z + moveZ * fixedDt
-      );
+      const minBound = 0.6;
+      const maxBoundX = world.config.worldSizeX - 0.6;
+      const maxBoundZ = world.config.worldSizeZ - 0.6;
+      const nextX = Math.max(minBound, Math.min(maxBoundX, this.position.x + moveX * fixedDt));
+      const nextY = Math.max(2.0, Math.min(world.config.worldHeight - 1, this.position.y + moveY * fixedDt));
+      const nextZ = Math.max(minBound, Math.min(maxBoundZ, this.position.z + moveZ * fixedDt));
+
+      this.position = new Vector3D(nextX, nextY, nextZ);
       this.onGround = false;
       return;
     }
@@ -136,8 +151,12 @@ export class Player {
     this.velocity = new Vector3D(moveX, newVy, moveZ);
 
     // Collision resolution by axis (X, Z, then Y)
-    // 1. Move X
-    let targetX = this.position.x + this.velocity.x * fixedDt;
+    // 1. Move X with boundary clamping
+    const minBound = 0.6;
+    const maxBoundX = world.config.worldSizeX - 0.6;
+    const maxBoundZ = world.config.worldSizeZ - 0.6;
+
+    let targetX = Math.max(minBound, Math.min(maxBoundX, this.position.x + this.velocity.x * fixedDt));
     let testBoxX = this.getBoundingBox(new Vector3D(targetX, this.position.y, this.position.z));
     if (world.checkAABBCollision(testBoxX)) {
       // Step-up attempt: try moving up 0.5 blocks to climb small steps
@@ -151,8 +170,8 @@ export class Player {
     }
     this.position = new Vector3D(targetX, this.position.y, this.position.z);
 
-    // 2. Move Z
-    let targetZ = this.position.z + this.velocity.z * fixedDt;
+    // 2. Move Z with boundary clamping
+    let targetZ = Math.max(minBound, Math.min(maxBoundZ, this.position.z + this.velocity.z * fixedDt));
     let testBoxZ = this.getBoundingBox(new Vector3D(this.position.x, this.position.y, targetZ));
     if (world.checkAABBCollision(testBoxZ)) {
       // Step-up attempt
@@ -187,10 +206,9 @@ export class Player {
       this.onGround = false;
     }
 
-    // World floor safeguard
-    if (this.position.y < 0) {
-      this.position = new Vector3D(this.position.x, 10, this.position.z);
-      this.velocity = new Vector3D(0, 0, 0);
+    // World floor safeguard & void fall prevention
+    if (this.position.y < 1.0) {
+      this.respawn(this.safeSpawn);
     }
   }
 }

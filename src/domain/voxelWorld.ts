@@ -38,6 +38,14 @@ export class VoxelWorld {
     this.config = WorldConfigSchema.parse(configPartial);
     const totalVoxels = this.config.worldSizeX * this.config.worldHeight * this.config.worldSizeZ;
     this.blocks = new Uint8Array(totalVoxels);
+
+    // Initialize bottom bedrock floor at y = 0
+    const stoneId = VoxelWorld.TYPE_TO_ID.get('stone') ?? 3;
+    for (let z = 0; z < this.config.worldSizeZ; z++) {
+      for (let x = 0; x < this.config.worldSizeX; x++) {
+        this.blocks[this.getIndex(x, 0, z)] = stoneId;
+      }
+    }
   }
 
   private getIndex(x: number, y: number, z: number): number {
@@ -65,11 +73,20 @@ export class VoxelWorld {
     const iz = Math.floor(z);
 
     if (!this.isWithinBounds(ix, iy, iz)) {
-      return 'air';
+      return iy === 0 ? 'stone' : 'air';
     }
 
     const id = this.blocks[this.getIndex(ix, iy, iz)];
     return VoxelWorld.BLOCK_TYPES[id] ?? 'air';
+  }
+
+  /**
+   * Safe block lookup with infinite bedrock floor protection
+   */
+  getSafeguardBlock(x: number, y: number, z: number): BlockType {
+    const iy = Math.floor(y);
+    if (iy <= 0) return 'stone';
+    return this.getBlock(x, y, z);
   }
 
   setBlock(x: number, y: number, z: number, type: BlockType): boolean {
@@ -115,6 +132,11 @@ export class VoxelWorld {
    * Check if an AABB intersects any solid voxel in the world
    */
   checkAABBCollision(box: AABBBox): boolean {
+    // Floor bedrock safeguard
+    if (box.min.y <= 0) {
+      return true;
+    }
+
     const minX = Math.floor(box.min.x);
     const maxX = Math.floor(box.max.x);
     const minY = Math.floor(box.min.y);

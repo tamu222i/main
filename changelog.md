@@ -65,3 +65,26 @@
 - **Refactor (Verification)**:
   - 全25件のユニットテスト合格確認（`npm test`）
   - 本番ビルド検証完了（`vite build`）
+
+### [Cycle 5: Ground Continuity, Fall Prevention, Island Naming & Avatar Customization] - Red -> Green -> Refactor
+- **Red (Test First)**:
+  - `src/domain/islandAvatar.test.ts`: 島のプロフィール（名前・作成者・バイオーム）およびアバター（肌・髪型・髪色・シャツ・パンツ・目・アクセサリ）のZodスキーマ検証、デフォルト値フォールバックの振る舞いテストを作成
+  - `src/infrastructure/worldRepository.test.ts`: 島データおよびアバターデータのLocalStorage永続化・復元テストを追加
+  - `src/domain/voxelWorld.test.ts` & `src/domain/player.test.ts`: 底面保護（y<=0岩盤）、ワールド外周境界クランプ、落下時の安全地点リスポーンの振る舞いテストを追加
+- **Green (Implementation)**:
+  - `islandAvatarSchemas.ts`: 島プロフィール（`IslandProfile`）とアバター（`AvatarProfile`）のZodスキーマとプリセット定義
+  - `worldRepository.ts`: 島の名前およびアバター外見設定のLocalStorage保存・ロードメソッドを実装
+  - `voxelWorld.ts`: y<=0を常に堅牢な岩盤として扱い、奈落落下を防止する床面セーフガードを実装
+  - `player.ts`: 外周境界クランプ（0.6〜worldSize-0.6）、安全スポーン座標（`safeSpawn`）追跡、y<1.0転落時の自動リスポーン処理を実装
+  - `avatarMesh.ts`: Three.jsによる3Dボクセルアバターモデル（頭、胴体、腕、脚、髪、アクセサリ）の生成および歩行・飛行・採掘スイングアニメーションを実装
+  - `AvatarCreatorModal.tsx`: 直感的なカラーパレット・髪型・アクセサリ選択が可能なアバター着せ替えモーダルUIを実装
+  - `IslandRenameModal.tsx`: 島の名前をいつでも変更できるモーダルUI（おすすめプリセット付き）を実装
+  - `GameHUD.tsx`: 画面左上に島の名前バッジ、右上に3段階カメラ視点切替ボタン（1人称 / 3人称背面 / 自撮り正面）およびアバター作成ボタンを統合
+  - `SettingsModal.tsx`: 設定画面トップに島の名前変更およびアバター編集へのショートカットを追加
+  - `App.tsx`: 3Dシーン内へのアバター配置、F5キー/ボタンによる視点切替、安全リスポーン時のトースト通知、44x44x32の広大で連続した地面生成を統合
+  - 全32件のユニットテストが合格
+- **Refactor (Clean Polish & Verification)**:
+  - TypeScript型安全性検証（`tsc --noEmit` エラー 0件）
+  - 全ユニットテスト（7ファイル、32テスト）完全パス
+  - 本番ビルド（`vite build`）検証完了
+

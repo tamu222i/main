@@ -43,4 +43,33 @@ describe('WorldRepository Infrastructure (BDD & TDD)', () => {
     const loaded = repository.loadWorld('nonexistent_slot', world);
     expect(loaded).toBe(false);
   });
+
+  it('Given island and avatar profiles, When saved and reloaded, Then preserves customized data', () => {
+    const island = {
+      name: 'トレジャー島',
+      creatorName: 'クラフター太郎',
+      biome: 'island_paradise' as const,
+      createdAt: 1700000000,
+    };
+    repository.saveIslandProfile(island);
+    const loadedIsland = repository.loadIslandProfile();
+    expect(loadedIsland.name).toBe('トレジャー島');
+    expect(loadedIsland.creatorName).toBe('クラフター太郎');
+
+    const avatar = {
+      name: '勇者',
+      skinColor: '#ffd1a4',
+      hairColor: '#000000',
+      hairStyle: 'spiky' as const,
+      eyeColor: '#ff0000',
+      shirtColor: '#e11d48',
+      pantsColor: '#1e293b',
+      accessory: 'crown' as const,
+      accessoryColor: '#facc15',
+    };
+    repository.saveAvatarProfile(avatar);
+    const loadedAvatar = repository.loadAvatarProfile();
+    expect(loadedAvatar.name).toBe('勇者');
+    expect(loadedAvatar.accessory).toBe('crown');
+  });
 });

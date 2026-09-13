@@ -12,13 +12,22 @@ import { InputManager } from './engine/inputManager';
 import { soundSynthesizer } from './services/soundSynthesizer';
 import { defaultWorldRepository } from './infrastructure/worldRepository';
 import { defaultHintManager, HintItem } from './domain/tutorialHints';
+import { AvatarModel } from './engine/avatarMesh';
+import {
+  IslandProfile,
+  AvatarProfile,
+  DEFAULT_ISLAND_PROFILE,
+  DEFAULT_AVATAR_PROFILE,
+} from './domain/islandAvatarSchemas';
 import { Hotbar } from './components/Hotbar';
 import { TouchControls } from './components/TouchControls';
-import { GameHUD } from './components/GameHUD';
+import { GameHUD, CameraViewMode } from './components/GameHUD';
 import { BlockPaletteModal } from './components/BlockPaletteModal';
 import { SettingsModal } from './components/SettingsModal';
 import { HintBanner } from './components/HintBanner';
 import { GuideModal } from './components/GuideModal';
+import { AvatarCreatorModal } from './components/AvatarCreatorModal';
+import { IslandRenameModal } from './components/IslandRenameModal';
 
 const DEFAULT_HOTBAR: BlockType[] = [
   'grass',
@@ -42,9 +51,21 @@ export default function App() {
   const meshBuilderRef = useRef<VoxelMeshBuilder | null>(null);
   const inputManagerRef = useRef<InputManager>(new InputManager());
   const worldMeshGroupRef = useRef<THREE.Group | null>(null);
+  const avatarModelRef = useRef<AvatarModel | null>(null);
 
   // UI state
   const [currentSeed, setCurrentSeed] = useState<number>(45678);
+  const [islandProfile, setIslandProfile] = useState<IslandProfile>(() =>
+    defaultWorldRepository.loadIslandProfile()
+  );
+  const [avatarProfile, setAvatarProfile] = useState<AvatarProfile>(() =>
+    defaultWorldRepository.loadAvatarProfile()
+  );
+  const [cameraMode, setCameraMode] = useState<CameraViewMode>('first_person');
+  const cameraModeRef = useRef<CameraViewMode>('first_person');
+  cameraModeRef.current = cameraMode;
+  const [isRenameIslandOpen, setIsRenameIslandOpen] = useState<boolean>(false);
+  const [isAvatarModalOpen, setIsAvatarModalOpen] = useState<boolean>(false);
   const [hotbarSlots, setHotbarSlots] = useState<BlockType[]>(DEFAULT_HOTBAR);
   const [selectedSlot, setSelectedSlot] = useState<number>(0);
   const [isPaletteOpen, setIsPaletteOpen] = useState<boolean>(false);
@@ -53,7 +74,7 @@ export default function App() {
   const [isMuted, setIsMuted] = useState<boolean>(false);
   const [isFlying, setIsFlying] = useState<boolean>(false);
   const [fps, setFps] = useState<number>(60);
-  const [playerPos, setPlayerPos] = useState<Vector3D>(new Vector3D(16, 12, 16));
+  const [playerPos, setPlayerPos] = useState<Vector3D>(new Vector3D(22, 14, 22));
   const [targetBlock, setTargetBlock] = useState<{
     pos: Vector3D;
     type: BlockType;
@@ -77,6 +98,26 @@ export default function App() {
       setToastMessage((prev) => (prev === msg ? null : prev));
     }, 2500);
   };
+
+  const handleCycleCameraMode = useCallback(() => {
+    setCameraMode((prev) => {
+      const next: CameraViewMode =
+        prev === 'first_person'
+          ? 'third_person_back'
+          : prev === 'third_person_back'
+          ? 'third_person_front'
+          : 'first_person';
+      cameraModeRef.current = next;
+      const label =
+        next === 'first_person'
+          ? '📷 1人称視点'
+          : next === 'third_person_back'
+          ? '📷 3人称背面視点'
+          : '📷 3人称自撮り視点';
+      showToast(label);
+      return next;
+    });
+  }, []);
 
   const handleNextHint = () => {
     const next = defaultHintManager.nextHint();
@@ -123,6 +164,8 @@ export default function App() {
     const player = playerRef.current;
     if (!world || !player) return;
 
+    avatarModelRef.current?.triggerMineSwing();
+
     const eye = player.getEyePosition();
     const dir = player.getDirection();
     const hit = world.raycast(eye, dir, 7);
@@ -140,6 +183,8 @@ export default function App() {
     const world = worldRef.current;
     const player = playerRef.current;
     if (!world || !player) return;
+
+    avatarModelRef.current?.triggerMineSwing();
 
     const eye = player.getEyePosition();
     const dir = player.getDirection();
@@ -174,8 +219,8 @@ export default function App() {
   const initWorld = useCallback(
     (seed: number) => {
       const world = new VoxelWorld({
-        worldSizeX: 32,
-        worldSizeZ: 32,
+        worldSizeX: 44,
+        worldSizeZ: 44,
         worldHeight: 32,
         seed,
       });
@@ -185,18 +230,20 @@ export default function App() {
       gen.generate(world);
 
       // Find suitable spawn position (on top of highest solid block at center)
-      const spawnX = 16;
-      const spawnZ = 16;
+      const spawnX = Math.floor(world.config.worldSizeX / 2);
+      const spawnZ = Math.floor(world.config.worldSizeZ / 2);
       let spawnY = 12;
-      for (let y = 30; y >= 0; y--) {
+      for (let y = world.config.worldHeight - 2; y >= 0; y--) {
         if (world.getBlock(spawnX, y, spawnZ) !== 'air') {
           spawnY = y + 1;
           break;
         }
       }
 
+      const safeSpawnPos = new Vector3D(spawnX + 0.5, spawnY + 0.5, spawnZ + 0.5);
       const player = new Player({
-        initialPosition: new Vector3D(spawnX + 0.5, spawnY + 1, spawnZ + 0.5),
+        initialPosition: safeSpawnPos,
+        safeSpawn: safeSpawnPos,
       });
       playerRef.current = player;
       setPlayerPos(player.position);
@@ -223,6 +270,12 @@ export default function App() {
     const meshBuilder = new VoxelMeshBuilder(atlas);
     meshBuilderRef.current = meshBuilder;
 
+    // 3D Player Avatar Model
+    const initialAvatarProfile = defaultWorldRepository.loadAvatarProfile();
+    const avatarModel = new AvatarModel(initialAvatarProfile);
+    avatarModelRef.current = avatarModel;
+    sceneManager.scene.add(avatarModel.root);
+
     // Input bindings
     const inputManager = inputManagerRef.current;
     inputManager.attachCanvas(canvasRef.current);
@@ -241,7 +294,7 @@ export default function App() {
     };
     window.addEventListener('resize', handleResize);
 
-    // Keyboard Hotbar slot shortcuts & palette
+    // Keyboard Hotbar slot shortcuts & palette & camera view
     const handleKeyDown = (e: KeyboardEvent) => {
       const num = parseInt(e.key, 10);
       if (num >= 1 && num <= 9) {
@@ -249,6 +302,10 @@ export default function App() {
       }
       if (e.code === 'KeyE') {
         setIsPaletteOpen((prev) => !prev);
+      }
+      if (e.code === 'F5') {
+        e.preventDefault();
+        handleCycleCameraMode();
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -289,10 +346,57 @@ export default function App() {
         const prevPos = player.position.clone();
         player.update(dt, world, input);
 
-        // Update camera
+        // Notify if respawned safely to island ground
+        if (
+          prevPos.y < 2.0 &&
+          player.position.y === player.safeSpawn.y &&
+          Math.abs(player.position.x - player.safeSpawn.x) < 0.1 &&
+          player.velocity.y === 0
+        ) {
+          showToast('🏝️ 島の安全な地面にリスポーンしました');
+        }
+
         const eye = player.getEyePosition();
-        sceneManager.camera.position.set(eye.x, eye.y, eye.z);
-        sceneManager.camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+        const dir = player.getDirection();
+        const isMoving =
+          player.onGround &&
+          (input.forward !== 0 || input.right !== 0) &&
+          prevPos.sub(player.position).length() > 0.01;
+
+        // Avatar positioning & camera view angle
+        if (avatarModelRef.current) {
+          const avatar = avatarModelRef.current;
+          avatar.root.position.set(player.position.x, player.position.y, player.position.z);
+          avatar.root.rotation.y = player.yaw;
+          avatar.update(dt, isMoving, player.isFlying);
+
+          const mode = cameraModeRef.current;
+          if (mode === 'first_person') {
+            avatar.root.visible = false;
+            sceneManager.camera.position.set(eye.x, eye.y, eye.z);
+            sceneManager.camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+          } else if (mode === 'third_person_back') {
+            avatar.root.visible = true;
+            const camDist = 3.4;
+            const cx = eye.x - dir.x * camDist;
+            const cy = eye.y - dir.y * camDist + 0.5;
+            const cz = eye.z - dir.z * camDist;
+            sceneManager.camera.position.set(cx, cy, cz);
+            sceneManager.camera.lookAt(eye.x, eye.y + 0.1, eye.z);
+          } else {
+            // third_person_front (selfie view)
+            avatar.root.visible = true;
+            const camDist = 3.2;
+            const cx = eye.x + dir.x * camDist;
+            const cy = eye.y + dir.y * camDist + 0.3;
+            const cz = eye.z + dir.z * camDist;
+            sceneManager.camera.position.set(cx, cy, cz);
+            sceneManager.camera.lookAt(eye.x, eye.y - 0.1, eye.z);
+          }
+        } else {
+          sceneManager.camera.position.set(eye.x, eye.y, eye.z);
+          sceneManager.camera.rotation.set(player.pitch, player.yaw, 0, 'YXZ');
+        }
 
         // Sound on footstep when moving on ground
         if (
@@ -306,7 +410,6 @@ export default function App() {
         }
 
         // Raycast for target block
-        const dir = player.getDirection();
         const hit = world.raycast(eye, dir, 7);
 
         sceneManager.setTargetHighlight(hit ? hit.blockPos : null);
@@ -340,6 +443,9 @@ export default function App() {
       cancelAnimationFrame(animId);
       window.removeEventListener('resize', handleResize);
       window.removeEventListener('keydown', handleKeyDown);
+      if (avatarModelRef.current) {
+        avatarModelRef.current.dispose();
+      }
       sceneManager.dispose();
     };
   }, [handleMineBlock, handlePlaceBlock, initWorld]);
@@ -348,9 +454,11 @@ export default function App() {
   const handleSaveWorld = () => {
     if (!worldRef.current) return;
     const ok = defaultWorldRepository.saveWorld('autosave', worldRef.current);
+    defaultWorldRepository.saveIslandProfile(islandProfile);
+    defaultWorldRepository.saveAvatarProfile(avatarProfile);
     if (ok) {
       setHasSavedWorld(true);
-      showToast('💾 ワールドを保存しました！');
+      showToast('💾 ワールドと島データを保存しました！');
     }
   };
 
@@ -359,10 +467,39 @@ export default function App() {
     if (!worldRef.current) return;
     const ok = defaultWorldRepository.loadWorld('autosave', worldRef.current);
     if (ok) {
+      const loadedIsland = defaultWorldRepository.loadIslandProfile();
+      const loadedAvatar = defaultWorldRepository.loadAvatarProfile();
+      setIslandProfile(loadedIsland);
+      setAvatarProfile(loadedAvatar);
+      if (avatarModelRef.current) {
+        avatarModelRef.current.buildMeshes(loadedAvatar);
+      }
       refreshWorldMesh();
-      showToast('📤 保存ワールドを読み込みました！');
+      showToast('📤 保存ワールドと島データを読み込みました！');
       setIsSettingsOpen(false);
     }
+  };
+
+  // Island Name Change
+  const handleSaveIslandName = (newName: string) => {
+    const updated: IslandProfile = {
+      ...islandProfile,
+      name: newName,
+      updatedAt: Date.now(),
+    };
+    setIslandProfile(updated);
+    defaultWorldRepository.saveIslandProfile(updated);
+    showToast(`🏝️ 島の名前を「${newName}」に設定しました`);
+  };
+
+  // Avatar Profile Change
+  const handleSaveAvatar = (newAvatar: AvatarProfile) => {
+    setAvatarProfile(newAvatar);
+    defaultWorldRepository.saveAvatarProfile(newAvatar);
+    if (avatarModelRef.current) {
+      avatarModelRef.current.buildMeshes(newAvatar);
+    }
+    showToast(`👤 アバター「${newAvatar.name}」を保存しました`);
   };
 
   // Sensitivity change
@@ -402,7 +539,7 @@ export default function App() {
         className="absolute inset-0 w-full h-full block touch-none outline-hidden"
       />
 
-      {/* HUD: Stats, Crosshair, Day/Night, Mute, Settings, Guide */}
+      {/* HUD: Stats, Crosshair, Day/Night, Mute, Settings, Guide, Island, Avatar, Camera */}
       <GameHUD
         playerPos={playerPos}
         targetBlock={targetBlock}
@@ -410,11 +547,17 @@ export default function App() {
         isDay={isDay}
         isMuted={isMuted}
         isFlying={isFlying}
+        islandName={islandProfile.name}
+        avatarName={avatarProfile.name}
+        cameraMode={cameraMode}
         onToggleDayNight={handleToggleDayNight}
         onToggleMute={handleToggleMute}
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenGuide={() => setIsGuideOpen(true)}
         onToggleHints={() => setIsHintsVisible((prev) => !prev)}
+        onCycleCameraMode={handleCycleCameraMode}
+        onOpenAvatarModal={() => setIsAvatarModalOpen(true)}
+        onRenameIsland={() => setIsRenameIslandOpen(true)}
         isHintsVisible={isHintsVisible}
         toastMessage={toastMessage}
       />
@@ -486,12 +629,37 @@ export default function App() {
         hasSavedWorld={hasSavedWorld}
         touchSensitivity={touchSensitivity}
         onChangeTouchSensitivity={handleChangeSensitivity}
+        islandName={islandProfile.name}
+        onOpenRenameIsland={() => {
+          setIsSettingsOpen(false);
+          setIsRenameIslandOpen(true);
+        }}
+        onOpenAvatarModal={() => {
+          setIsSettingsOpen(false);
+          setIsAvatarModalOpen(true);
+        }}
       />
 
       {/* Operation & GitHub Deployment Guide Modal */}
       <GuideModal
         isOpen={isGuideOpen}
         onClose={() => setIsGuideOpen(false)}
+      />
+
+      {/* Island Name Modal */}
+      <IslandRenameModal
+        isOpen={isRenameIslandOpen}
+        onClose={() => setIsRenameIslandOpen(false)}
+        currentName={islandProfile.name}
+        onSave={handleSaveIslandName}
+      />
+
+      {/* Avatar Creator & Customization Modal */}
+      <AvatarCreatorModal
+        isOpen={isAvatarModalOpen}
+        onClose={() => setIsAvatarModalOpen(false)}
+        currentProfile={avatarProfile}
+        onSaveProfile={handleSaveAvatar}
       />
     </div>
   );
