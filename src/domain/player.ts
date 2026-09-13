@@ -16,6 +16,7 @@ export interface PlayerOptions {
   runSpeed?: number;
   jumpVelocity?: number;
   gravity?: number;
+  safeSpawn?: Vector3D;
 }
 
 export class Player {
@@ -42,7 +43,7 @@ export class Player {
 
   constructor(options: PlayerOptions = {}) {
     this.position = options.initialPosition ?? new Vector3D(0, 10, 0);
-    this.safeSpawn = this.position.clone();
+    this.safeSpawn = options.safeSpawn ? options.safeSpawn.clone() : this.position.clone();
     this.velocity = new Vector3D(0, 0, 0);
     this.walkSpeed = options.walkSpeed ?? 4.3;
     this.runSpeed = options.runSpeed ?? 6.5;

@@ -659,6 +659,7 @@ export default function App() {
         isOpen={isAvatarModalOpen}
         onClose={() => setIsAvatarModalOpen(false)}
         currentProfile={avatarProfile}
+        onSave={handleSaveAvatar}
         onSaveProfile={handleSaveAvatar}
       />
     </div>

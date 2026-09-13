@@ -50,6 +50,47 @@ describe('Avatar Profile Domain (BDD & TDD)', () => {
     const alexPreset = AVATAR_PRESETS.alex;
     expect(alexPreset.hairColor).toBe('#b54f15');
   });
+
+  it('Given custom character name, When parsed, Then saves trimmed name or defaults on empty', () => {
+    const custom = AvatarProfileSchema.parse({
+      ...DEFAULT_AVATAR_PROFILE,
+      name: '  マインマスター  ',
+    });
+    expect(custom.name).toBe('マインマスター');
+
+    const emptyName = AvatarProfileSchema.parse({
+      ...DEFAULT_AVATAR_PROFILE,
+      name: '   ',
+    });
+    expect(emptyName.name).toBe(DEFAULT_AVATAR_PROFILE.name);
+  });
+
+  it('Given block customization, When parts are set to voxel blocks, Then parses correctly', () => {
+    const blockAvatar = AvatarProfileSchema.parse({
+      ...DEFAULT_AVATAR_PROFILE,
+      name: 'ダイヤゴーレム',
+      headBlock: 'diamond',
+      bodyBlock: 'gold',
+      armsBlock: 'tnt',
+      legsBlock: 'obsidian',
+    });
+
+    expect(blockAvatar.headBlock).toBe('diamond');
+    expect(blockAvatar.bodyBlock).toBe('gold');
+    expect(blockAvatar.armsBlock).toBe('tnt');
+    expect(blockAvatar.legsBlock).toBe('obsidian');
+  });
+
+  it('Given block avatar presets, When loaded, Then all presets have valid block definitions', () => {
+    expect(AVATAR_PRESETS.diamond_knight).toBeDefined();
+    expect(AVATAR_PRESETS.diamond_knight.headBlock).toBe('diamond');
+    expect(AVATAR_PRESETS.tnt_bomber).toBeDefined();
+    expect(AVATAR_PRESETS.tnt_bomber.headBlock).toBe('tnt');
+    expect(AVATAR_PRESETS.gold_golem).toBeDefined();
+    expect(AVATAR_PRESETS.gold_golem.bodyBlock).toBe('gold');
+    expect(AVATAR_PRESETS.forest_spirit).toBeDefined();
+    expect(AVATAR_PRESETS.forest_spirit.headBlock).toBe('leaves');
+  });
 });
 
 describe('Continuous Ground & Fall Safeguard (BDD & TDD)', () => {
@@ -71,7 +112,7 @@ describe('Continuous Ground & Fall Safeguard (BDD & TDD)', () => {
     });
 
     player.setSafeSpawn(new Vector3D(20, 7, 20));
-    player.update(0.1, world, { forward: 0, right: 0, jump: false, sneak: false, lookDeltaX: 0, lookDeltaY: 0 });
+    player.update(0.1, world, { forward: 0, right: 0, jump: false, sneak: false, fly: false });
 
     // Should have respawned safely at or near safeSpawn
     expect(player.position.y).toBeGreaterThanOrEqual(5);

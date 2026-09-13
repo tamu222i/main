@@ -356,3 +356,5 @@ export class TextureAtlasManager {
     return mat;
   }
 }
+
+export const defaultTextureAtlas = new TextureAtlasManager();

@@ -57,7 +57,7 @@ describe('WorldRepository Infrastructure (BDD & TDD)', () => {
     expect(loadedIsland.creatorName).toBe('クラフター太郎');
 
     const avatar = {
-      name: '勇者',
+      name: '伝説のダイヤ戦士',
       skinColor: '#ffd1a4',
       hairColor: '#000000',
       hairStyle: 'spiky' as const,
@@ -66,10 +66,18 @@ describe('WorldRepository Infrastructure (BDD & TDD)', () => {
       pantsColor: '#1e293b',
       accessory: 'crown' as const,
       accessoryColor: '#facc15',
+      headBlock: 'diamond' as const,
+      bodyBlock: 'obsidian' as const,
+      armsBlock: 'gold' as const,
+      legsBlock: 'iron' as const,
     };
     repository.saveAvatarProfile(avatar);
     const loadedAvatar = repository.loadAvatarProfile();
-    expect(loadedAvatar.name).toBe('勇者');
+    expect(loadedAvatar.name).toBe('伝説のダイヤ戦士');
     expect(loadedAvatar.accessory).toBe('crown');
+    expect(loadedAvatar.headBlock).toBe('diamond');
+    expect(loadedAvatar.bodyBlock).toBe('obsidian');
+    expect(loadedAvatar.armsBlock).toBe('gold');
+    expect(loadedAvatar.legsBlock).toBe('iron');
   });
 });

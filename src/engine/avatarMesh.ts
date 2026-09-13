@@ -1,5 +1,7 @@
 import * as THREE from 'three';
-import { AvatarProfile } from '../domain/islandAvatarSchemas';
+import { AvatarProfile, AvatarBlockType } from '../domain/islandAvatarSchemas';
+import { BlockType } from '../domain/schemas';
+import { defaultTextureAtlas, TextureAtlasManager } from './textureAtlas';
 
 export class AvatarModel {
   readonly root: THREE.Group;
@@ -10,12 +12,14 @@ export class AvatarModel {
   private leftLegGroup: THREE.Group;
   private rightLegGroup: THREE.Group;
   private accessoryGroup: THREE.Group;
+  private atlas: TextureAtlasManager;
 
   private animTime = 0;
   private isSwinging = false;
   private swingProgress = 0;
 
-  constructor(profile: AvatarProfile) {
+  constructor(profile: AvatarProfile, atlas?: TextureAtlasManager) {
+    this.atlas = atlas ?? defaultTextureAtlas;
     this.root = new THREE.Group();
 
     this.headGroup = new THREE.Group();
@@ -37,6 +41,23 @@ export class AvatarModel {
     this.buildMeshes(profile);
   }
 
+  private getBlockOrColorMaterial(
+    blockType: AvatarBlockType | undefined,
+    fallbackMat: THREE.Material
+  ): { material: THREE.Material | THREE.Material[]; isShared: boolean } {
+    if (blockType && blockType !== 'none') {
+      try {
+        const mat = this.atlas.getBlockMaterial(blockType as BlockType);
+        if (mat) {
+          return { material: mat, isShared: true };
+        }
+      } catch {
+        // fallback
+      }
+    }
+    return { material: fallbackMat, isShared: false };
+  }
+
   buildMeshes(profile: AvatarProfile): void {
     // Clear existing children
     const clearGroup = (g: THREE.Group) => {
@@ -45,10 +66,12 @@ export class AvatarModel {
         g.remove(obj);
         if (obj instanceof THREE.Mesh) {
           obj.geometry.dispose();
-          if (Array.isArray(obj.material)) {
-            obj.material.forEach((m) => m.dispose());
-          } else {
-            obj.material.dispose();
+          if (!obj.userData?.isSharedMaterial) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach((m) => m.dispose());
+            } else if (obj.material) {
+              obj.material.dispose();
+            }
           }
         }
       }
@@ -72,39 +95,52 @@ export class AvatarModel {
     const shoesMat = new THREE.MeshLambertMaterial({ color: 0x1c1917 });
     const accMat = new THREE.MeshLambertMaterial({ color: profile.accessoryColor });
 
+    // Block materials
+    const headBlockMat = this.getBlockOrColorMaterial(profile.headBlock, skinMat);
+    const bodyBlockMat = this.getBlockOrColorMaterial(profile.bodyBlock, shirtMat);
+    const armsBlockMat = this.getBlockOrColorMaterial(profile.armsBlock, shirtMat);
+    const legsBlockMat = this.getBlockOrColorMaterial(profile.legsBlock, pantsMat);
+
+    const isBlockHead = profile.headBlock && profile.headBlock !== 'none';
+    const isBlockArms = profile.armsBlock && profile.armsBlock !== 'none';
+    const isBlockLegs = profile.legsBlock && profile.legsBlock !== 'none';
+
     // 1. Head (0.5 x 0.5 x 0.5) at y = 1.45
     this.headGroup.position.set(0, 1.45, 0);
     const headGeo = new THREE.BoxGeometry(0.48, 0.48, 0.48);
-    const headMesh = new THREE.Mesh(headGeo, skinMat);
+    const headMesh = new THREE.Mesh(headGeo, headBlockMat.material);
+    headMesh.userData = { isSharedMaterial: headBlockMat.isShared };
     headMesh.castShadow = true;
     this.headGroup.add(headMesh);
 
-    // Hair
-    const hairTopGeo = new THREE.BoxGeometry(0.50, 0.12, 0.50);
-    const hairTopMesh = new THREE.Mesh(hairTopGeo, hairMat);
-    hairTopMesh.position.set(0, 0.2, 0);
-    this.headGroup.add(hairTopMesh);
+    // If head is not a block, render custom hair style
+    if (!isBlockHead) {
+      const hairTopGeo = new THREE.BoxGeometry(0.50, 0.12, 0.50);
+      const hairTopMesh = new THREE.Mesh(hairTopGeo, hairMat);
+      hairTopMesh.position.set(0, 0.2, 0);
+      this.headGroup.add(hairTopMesh);
 
-    const hairBackGeo = new THREE.BoxGeometry(0.50, 0.32, 0.12);
-    const hairBackMesh = new THREE.Mesh(hairBackGeo, hairMat);
-    hairBackMesh.position.set(0, 0.08, 0.2);
-    this.headGroup.add(hairBackMesh);
+      const hairBackGeo = new THREE.BoxGeometry(0.50, 0.32, 0.12);
+      const hairBackMesh = new THREE.Mesh(hairBackGeo, hairMat);
+      hairBackMesh.position.set(0, 0.08, 0.2);
+      this.headGroup.add(hairBackMesh);
 
-    if (profile.hairStyle === 'spiky') {
-      const spikeGeo = new THREE.BoxGeometry(0.3, 0.14, 0.3);
-      const spikeMesh = new THREE.Mesh(spikeGeo, hairMat);
-      spikeMesh.position.set(0, 0.28, -0.05);
-      this.headGroup.add(spikeMesh);
-    } else if (profile.hairStyle === 'ponytail') {
-      const ponyGeo = new THREE.BoxGeometry(0.16, 0.35, 0.16);
-      const ponyMesh = new THREE.Mesh(ponyGeo, hairMat);
-      ponyMesh.position.set(0, 0.0, 0.32);
-      this.headGroup.add(ponyMesh);
-    } else if (profile.hairStyle === 'afro') {
-      const afroGeo = new THREE.BoxGeometry(0.58, 0.25, 0.58);
-      const afroMesh = new THREE.Mesh(afroGeo, hairMat);
-      afroMesh.position.set(0, 0.22, 0);
-      this.headGroup.add(afroMesh);
+      if (profile.hairStyle === 'spiky') {
+        const spikeGeo = new THREE.BoxGeometry(0.3, 0.14, 0.3);
+        const spikeMesh = new THREE.Mesh(spikeGeo, hairMat);
+        spikeMesh.position.set(0, 0.28, -0.05);
+        this.headGroup.add(spikeMesh);
+      } else if (profile.hairStyle === 'ponytail') {
+        const ponyGeo = new THREE.BoxGeometry(0.16, 0.35, 0.16);
+        const ponyMesh = new THREE.Mesh(ponyGeo, hairMat);
+        ponyMesh.position.set(0, 0.0, 0.32);
+        this.headGroup.add(ponyMesh);
+      } else if (profile.hairStyle === 'afro') {
+        const afroGeo = new THREE.BoxGeometry(0.58, 0.25, 0.58);
+        const afroMesh = new THREE.Mesh(afroGeo, hairMat);
+        afroMesh.position.set(0, 0.22, 0);
+        this.headGroup.add(afroMesh);
+      }
     }
 
     // Eyes: front is -Z
@@ -192,32 +228,43 @@ export class AvatarModel {
     // 2. Torso (0.46 x 0.65 x 0.24) at y = 0.88
     this.torsoGroup.position.set(0, 0.88, 0);
     const torsoGeo = new THREE.BoxGeometry(0.46, 0.65, 0.24);
-    const torsoMesh = new THREE.Mesh(torsoGeo, shirtMat);
+    const torsoMesh = new THREE.Mesh(torsoGeo, bodyBlockMat.material);
+    torsoMesh.userData = { isSharedMaterial: bodyBlockMat.isShared };
     torsoMesh.castShadow = true;
     this.torsoGroup.add(torsoMesh);
 
     // 3. Left Arm (pivot at shoulder: y = 1.15)
     this.leftArmGroup.position.set(-0.35, 1.15, 0);
     const armGeoUpper = new THREE.BoxGeometry(0.2, 0.4, 0.2);
-    const leftArmUpper = new THREE.Mesh(armGeoUpper, shirtMat);
+    const leftArmUpper = new THREE.Mesh(armGeoUpper, armsBlockMat.material);
+    leftArmUpper.userData = { isSharedMaterial: armsBlockMat.isShared };
     leftArmUpper.position.set(0, -0.2, 0);
     leftArmUpper.castShadow = true;
     this.leftArmGroup.add(leftArmUpper);
 
     const armGeoLower = new THREE.BoxGeometry(0.19, 0.25, 0.19);
-    const leftArmLower = new THREE.Mesh(armGeoLower, skinMat);
+    const leftArmLower = new THREE.Mesh(
+      armGeoLower,
+      isBlockArms ? armsBlockMat.material : skinMat
+    );
+    leftArmLower.userData = { isSharedMaterial: isBlockArms ? armsBlockMat.isShared : false };
     leftArmLower.position.set(0, -0.5, 0);
     leftArmLower.castShadow = true;
     this.leftArmGroup.add(leftArmLower);
 
     // 4. Right Arm (pivot at shoulder: y = 1.15)
     this.rightArmGroup.position.set(0.35, 1.15, 0);
-    const rightArmUpper = new THREE.Mesh(armGeoUpper, shirtMat);
+    const rightArmUpper = new THREE.Mesh(armGeoUpper, armsBlockMat.material);
+    rightArmUpper.userData = { isSharedMaterial: armsBlockMat.isShared };
     rightArmUpper.position.set(0, -0.2, 0);
     rightArmUpper.castShadow = true;
     this.rightArmGroup.add(rightArmUpper);
 
-    const rightArmLower = new THREE.Mesh(armGeoLower, skinMat);
+    const rightArmLower = new THREE.Mesh(
+      armGeoLower,
+      isBlockArms ? armsBlockMat.material : skinMat
+    );
+    rightArmLower.userData = { isSharedMaterial: isBlockArms ? armsBlockMat.isShared : false };
     rightArmLower.position.set(0, -0.5, 0);
     rightArmLower.castShadow = true;
     this.rightArmGroup.add(rightArmLower);
@@ -225,24 +272,34 @@ export class AvatarModel {
     // 5. Left Leg (pivot at hip: y = 0.58)
     this.leftLegGroup.position.set(-0.12, 0.58, 0);
     const legGeo = new THREE.BoxGeometry(0.21, 0.45, 0.22);
-    const leftLegMesh = new THREE.Mesh(legGeo, pantsMat);
+    const leftLegMesh = new THREE.Mesh(legGeo, legsBlockMat.material);
+    leftLegMesh.userData = { isSharedMaterial: legsBlockMat.isShared };
     leftLegMesh.position.set(0, -0.22, 0);
     leftLegMesh.castShadow = true;
     this.leftLegGroup.add(leftLegMesh);
 
     const shoeGeo = new THREE.BoxGeometry(0.22, 0.13, 0.23);
-    const leftShoe = new THREE.Mesh(shoeGeo, shoesMat);
+    const leftShoe = new THREE.Mesh(
+      shoeGeo,
+      isBlockLegs ? legsBlockMat.material : shoesMat
+    );
+    leftShoe.userData = { isSharedMaterial: isBlockLegs ? legsBlockMat.isShared : false };
     leftShoe.position.set(0, -0.51, 0);
     this.leftLegGroup.add(leftShoe);
 
     // 6. Right Leg (pivot at hip: y = 0.58)
     this.rightLegGroup.position.set(0.12, 0.58, 0);
-    const rightLegMesh = new THREE.Mesh(legGeo, pantsMat);
+    const rightLegMesh = new THREE.Mesh(legGeo, legsBlockMat.material);
+    rightLegMesh.userData = { isSharedMaterial: legsBlockMat.isShared };
     rightLegMesh.position.set(0, -0.22, 0);
     rightLegMesh.castShadow = true;
     this.rightLegGroup.add(rightLegMesh);
 
-    const rightShoe = new THREE.Mesh(shoeGeo, shoesMat);
+    const rightShoe = new THREE.Mesh(
+      shoeGeo,
+      isBlockLegs ? legsBlockMat.material : shoesMat
+    );
+    rightShoe.userData = { isSharedMaterial: isBlockLegs ? legsBlockMat.isShared : false };
     rightShoe.position.set(0, -0.51, 0);
     this.rightLegGroup.add(rightShoe);
   }
