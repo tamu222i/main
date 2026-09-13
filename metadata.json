@@ -1,0 +1,6 @@
+{
+  "name": "Mobile Web Voxel Craft",
+  "description": "スマートフォンやブラウザで遊べる3Dボクセルクラフトゲーム（マインクラフト風サンドボックス）",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
